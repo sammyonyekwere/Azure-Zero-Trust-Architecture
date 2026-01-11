@@ -1,0 +1,17 @@
+# Azure
+.azure/
+bin/
+obj/
+publish/
+
+# Bicep
+*.bicepparam
+!dev.bicepparam
+.bicep/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/

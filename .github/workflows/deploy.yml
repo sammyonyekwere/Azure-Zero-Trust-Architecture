@@ -1,0 +1,39 @@
+name: Deploy Zero Trust Architecture
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate Bicep
+        run: |
+          az deployment sub validate \
+            --location eastus \
+            --template-file infra/main.bicep \
+            --parameters location=eastus prefix=zt-prod
+
+      - name: Deploy to Azure
+        if: github.ref == 'refs/heads/main'
+        run: |
+          az deployment sub create \
+            --location eastus \
+            --template-file infra/main.bicep \
+            --parameters location=eastus prefix=zt-prod
