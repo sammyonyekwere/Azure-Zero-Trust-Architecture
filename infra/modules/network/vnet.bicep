@@ -1,9 +1,21 @@
 // infra/modules/network/vnet.bicep
+// --------------------------------------------------------------------------------
+// NETWORK SEGMENTATION & MICRO-SEGMENTATION
+// --------------------------------------------------------------------------------
+// Purpose: Create a network where lateral movement is blocked by default.
+// Key Zero Trust Concept: "Verify Explicitly" and "Least Privileged Access"
+// We achieve this by attaching an NSG with a 'DenyAllInbound' rule to all subnets.
+
 param location string
 param prefix string
 param vnetAddressPrefix string = '10.0.0.0/16'
 
-// Zero Trust: Default Deny All Inbound NSG
+// --------------------------------------------------------------------------------
+// Network Security Group (NSG)
+// --------------------------------------------------------------------------------
+// By default, Azure VNets allow intra-VNet traffic. We override this.
+// This generic "Default Deny" NSG is applied to subnets to ensure that
+// NO traffic flows unless we explicitly write an Allow rule later.
 resource defaultNsg 'Microsoft.Network/networkSecurityGroups@2023-04-01' = {
   name: '${prefix}-default-nsg'
   location: location
@@ -12,7 +24,7 @@ resource defaultNsg 'Microsoft.Network/networkSecurityGroups@2023-04-01' = {
       {
         name: 'DenyAllInbound'
         properties: {
-          priority: 4096
+          priority: 4096 // Lowest priority to act as a catch-all
           access: 'Deny'
           direction: 'Inbound'
           protocol: '*'
@@ -20,12 +32,16 @@ resource defaultNsg 'Microsoft.Network/networkSecurityGroups@2023-04-01' = {
           destinationPortRange: '*'
           sourceAddressPrefix: '*'
           destinationAddressPrefix: '*'
+          description: 'Zero Trust enforced: Deny all traffic by default. Explicit allows required.'
         }
       }
     ]
   }
 }
 
+// --------------------------------------------------------------------------------
+// Virtual Network
+// --------------------------------------------------------------------------------
 resource vnet 'Microsoft.Network/virtualNetworks@2023-04-01' = {
   name: '${prefix}-vnet'
   location: location
@@ -40,6 +56,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-04-01' = {
         name: 'AzureFirewallSubnet'
         properties: {
           addressPrefix: '10.0.1.0/24'
+          // Firewalls manage their own security; no NSG needed here.
         }
       }
       {
@@ -47,7 +64,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-04-01' = {
         properties: {
           addressPrefix: '10.0.2.0/24'
           networkSecurityGroup: {
-            id: defaultNsg.id
+            id: defaultNsg.id // APPLYING ZERO TRUST DENY POLICY
           }
         }
       }
@@ -56,9 +73,10 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-04-01' = {
         properties: {
           addressPrefix: '10.0.3.0/24'
           networkSecurityGroup: {
-            id: defaultNsg.id
+            id: defaultNsg.id // APPLYING ZERO TRUST DENY POLICY
           }
-          privateEndpointNetworkPolicies: 'Disabled'
+          // Private Network Policies must be disabled to allow Private Endpoints (depending on Azure API version)
+          privateEndpointNetworkPolicies: 'Disabled' 
         }
       }
     ]
